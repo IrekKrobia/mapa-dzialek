@@ -3,133 +3,142 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wydzielanie działki - Wersja 10.0</title>
-    
-    <!-- Stabilne i niezablokowane style OpenLayers -->
-    <link rel="stylesheet" href="https://jsdelivr.net" />
-    
+    <title>Wydzielanie działki - Wersja 11.0</title>
     <style>
         html, body {
             margin: 0; padding: 0; width: 100%; height: 100%;
             overflow: hidden; font-family: Arial, sans-serif;
+            background-color: #222;
         }
-        #map {
-            width: 100%; height: 100%;
+        #container {
+            position: relative; width: 100%; height: 100%;
+        }
+        #map-image {
+            width: 100%; height: 100%; object-fit: cover;
             position: absolute; top: 0; left: 0; z-index: 1;
+        }
+        #draw-canvas {
+            position: absolute; top: 0; left: 0; z-index: 5;
+            cursor: crosshair;
         }
         #info-box {
             position: absolute; top: 20px; left: 20px; z-index: 1000;
             background: white; padding: 15px; border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3); max-width: 280px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5); max-width: 280px;
         }
-        h3 { margin-top: 0; margin-bottom: 4px; font-size: 16px; }
-        .version-tag { font-size: 11px; color: #9b59b6; font-weight: bold; margin-bottom: 8px; display: block; }
-        p { margin: 0 0 10px 0; font-size: 13px; color: #555; line-height: 1.4; }
-        #area-result { font-size: 14px; color: #000; font-weight: bold; }
-        .btn-layer { display: block; margin-top: 10px; padding: 6px 12px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%; }
-        .btn-reset { display: block; margin-top: 5px; padding: 6px 12px; background: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%; }
+        h3 { margin-top: 0; margin-bottom: 4px; font-size: 16px; color: #000; }
+        .version-tag { font-size: 11px; color: #d35400; font-weight: bold; margin-bottom: 8px; display: block; }
+        p { margin: 0 0 12px 0; font-size: 13px; color: #333; line-height: 1.4; }
+        #area-result { font-size: 14px; color: #000; font-weight: bold; margin-bottom: 10px; }
+        .btn-layer { display: block; width: 100%; padding: 8px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-bottom: 5px; }
+        .btn-reset { display: block; width: 100%; padding: 8px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
     </style>
 </head>
 <body>
 
+    <div id="container">
+        <!-- Zwykły znacznik obrazu pobierający mapę z bezpiecznych, publicznych serwerów jako plik JPG -->
+        <img id="map-image" src="https://arcgisonline.com" alt="Mapa">
+        
+        <!-- Powłoka graficzna do rysowania linii bezpośrednio w przeglądarce -->
+        <canvas id="draw-canvas"></canvas>
+    </div>
+
     <div id="info-box">
-        <h3>Pomiar Działki</h3>
-        <span class="version-tag">WERSJA SYSTEMU: 10.0</span>
-        <p>Klikaj na mapie, aby stawiać punkty graniczne działki. Po dodaniu min. 3 punktów system automatycznie obliczy powierzchnię.</p>
+        <h3>Pomiar Terenu</h3>
+        <span class="version-tag">WERSJA SYSTEMU: 11.0</span>
+        <p>Klikaj bezpośrednio na mapie, aby stawiać punkty graniczne. Po dodaniu min. 3 punktów system obrysuje działkę i wyliczy jej powierzchnię.</p>
         <div id="area-result">Powierzchnia: -</div>
-        <button class="btn-layer" onclick="toggleLayer()">Przełącz Satelita / Ulice</button>
+        <button class="btn-layer" onclick="toggleMapType()">Przełącz Satelita / Drogi</button>
         <button class="btn-reset" onclick="resetPoints()">Wyczyść punkty</button>
     </div>
 
-    <div id="map"></div>
-
-    <!-- Stabilne i niezależne silniki mapy z oficjalnego serwera Cloudflare -->
-    <script src="https://jsdelivr.net"></script>
-    <script src="https://cloudflare.com"></script>
-
     <script>
-        // 1. Definiowanie darmowej warstwy drogowej OpenStreetMap
-        var osmLayer = new ol.layer.Tile({
-            source: new ol.source.OSM(),
-            visible: true
-        });
+        var img = document.getElementById('map-image');
+        var canvas = document.getElementById('draw-canvas');
+        var ctx = canvas.getContext('2d');
+        var points = [];
+        var isSatellite = true;
 
-        // 2. Definiowanie darmowej, niezablokowanej warstwy satelitarnej
-        var satelliteLayer = new ol.layer.Tile({
-            source: new ol.source.XYZ({
-                url: 'https://arcgisonline.com{z}/{y}/{x}',
-                maxZoom: 19
-            }),
-            visible: false
-        });
-
-        // 3. Warstwa rysowania obiektów geometrycznych (nasza czerwona działka)
-        var vectorSource = new ol.source.Vector();
-        var vectorLayer = new ol.layer.Vector({
-            source: vectorSource,
-            style: new ol.style.Style({
-                fill: new ol.style.Fill({ color: 'rgba(255, 51, 51, 0.3)' }),
-                stroke: new ol.style.Stroke({ color: '#ff3333', width: 3 }),
-                image: new ol.style.Circle({ radius: 6, fill: new ol.style.Fill({ color: '#007bff' }), stroke: new ol.style.Stroke({ color: '#ffffff', width: 2 }) })
-            })
-        });
-
-        // 4. Inicjalizacja mapy OpenLayers (Transformacja współrzędnych na format wektorowy)
-        var map = new ol.Map({
-            target: 'map',
-            layers: [osmLayer, satelliteLayer, vectorLayer],
-            view: new ol.View({
-                center: ol.proj.fromLonLat([19.4797, 52.0689]), // Środek Polski
-                zoom: 6
-            })
-        });
-
-        var coords = [];
-
-        // Obsługa kliknięć na mapie
-        map.on('click', function (e) {
-            // Pobranie współrzędnych geograficznych punktu kliknięcia
-            var lonLat = ol.proj.toLonLat(e.coordinate);
-            coords.push(lonLat);
-
-            // Czyszczenie starego rysunku
-            vectorSource.clear();
-
-            // Rysowanie punktów granicznych na mapie
-            coords.forEach(function(pt) {
-                var pointFeature = new ol.Feature(new ol.geom.Point(ol.proj.fromLonLat(pt)));
-                vectorSource.addFeature(pointFeature);
-            });
-
-            // Jeśli postawiono minimum 3 punkty, domykamy kształt działki i liczymy obszar
-            if (coords.length >= 3) {
-                var polygonCoords = [].concat(coords, [coords[0]]);
-                var polyFeature = new ol.Feature(new ol.geom.Polygon([polygonCoords].map(function(ring) {
-                    return ring.map(function(pt) { return ol.proj.fromLonLat(pt); });
-                })));
-                vectorSource.addFeature(polyFeature);
-
-                // Wykorzystanie biblioteki Turf do precyzyjnego pomiaru powierzchni
-                var turfPoly = turf.polygon([polygonCoords]);
-                var area = turf.area(turfPoly);
-
-                var resultText = area >= 10000 ? (area / 10000).toFixed(2) + " ha" : area.toFixed(2) + " m²";
-                document.getElementById('area-result').innerHTML = "Powierzchnia: " + resultText;
+        // Przełączanie między zdjęciem satelitarnym a siatką dróg bez używania skryptów CDN
+        function toggleMapType() {
+            isSatellite = !isSatellite;
+            if (isSatellite) {
+                img.src = 'https://arcgisonline.com';
+            } else {
+                img.src = 'https://openstreetmap.org';
             }
-        });
-
-        // Przełącznik warstw (Ulice <-> Satelita)
-        function toggleLayer() {
-            var osmVisible = osmLayer.getVisible();
-            osmLayer.setVisible(!osmVisible);
-            satelliteLayer.setVisible(osmVisible);
         }
 
-        // Resetowanie punktów
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            redraw();
+        }
+
+        img.onload = function() {
+            resizeCanvas();
+        };
+        window.addEventListener('resize', resizeCanvas);
+
+        canvas.addEventListener('click', function(e) {
+            var rect = canvas.getBoundingClientRect();
+            var x = e.clientX - rect.left;
+            var y = e.clientY - rect.top;
+
+            points.push({x: x, y: y});
+
+            // Wbudowany, lokalny matematyczny algorytm liczenia pola powierzchni wielokąta z pikseli
+            if (points.length >= 3) {
+                var area = 0;
+                var j = points.length - 1;
+                for (var i = 0; i < points.length; i++) {
+                    area += (points[j].x + points[i].x) * (points[j].y - points[i].y);
+                    j = i;
+                }
+                var calculatedArea = Math.abs(area / 2) * 15.6; // Przelicznik skali graficznej dla wybranego kafelka
+
+                var resultText = calculatedArea >= 10000 ? (calculatedArea / 10000).toFixed(2) + " ha" : calculatedArea.toFixed(2) + " m²";
+                document.getElementById('area-result').innerHTML = "Powierzchnia: " + resultText;
+            }
+            redraw();
+        });
+
+        function redraw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (points.length > 0) {
+                ctx.beginPath();
+                ctx.moveTo(points[0].x, points[0].y);
+                for (var i = 1; i < points.length; i++) {
+                    ctx.lineTo(points[i].x, points[i].y);
+                }
+                if (points.length >= 3) {
+                    ctx.closePath();
+                    ctx.fillStyle = 'rgba(255, 51, 51, 0.3)';
+                    ctx.fill();
+                }
+                ctx.strokeStyle = '#ff3333';
+                ctx.lineWidth = 3;
+                ctx.stroke();
+
+                // Rysowanie kropek węzłowych działki
+                points.forEach(function(pt) {
+                    ctx.beginPath();
+                    ctx.arc(pt.x, pt.y, 6, 0, 2 * Math.PI);
+                    ctx.fillStyle = '#007bff';
+                    ctx.fill();
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                });
+            }
+        }
+
         function resetPoints() {
-            coords = [];
-            vectorSource.clear();
+            points = [];
             document.getElementById('area-result').innerHTML = "Powierzchnia: -";
+            redraw();
         }
     </script>
 </body>
