@@ -5,8 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wydzielanie działki - OpenStreetMap</title>
     
-    <!-- Style CSS -->
-    <link rel="stylesheet" href="https://cloudflare.com" />
+    <!-- Tylko jedna, podstawowa i stabilna biblioteka stylów -->
     <link rel="stylesheet" href="https://cloudflare.com" />
     
     <style>
@@ -26,25 +25,25 @@
         h3 { margin-top: 0; margin-bottom: 8px; font-size: 16px; }
         p { margin: 0 0 10px 0; font-size: 13px; color: #555; }
         #area-result { font-size: 14px; color: #000; font-weight: bold; }
+        .btn-reset { display: block; margin-top: 10px; padding: 5px 10px; background: #ff3333; color: white; border: none; border-radius: 4px; cursor: pointer; }
     </style>
 </head>
 <body>
 
     <div id="info-box">
-        <h3>Twoja Działka</h3>
-        <p>Wybierz ikonę wielokąta po lewej stronie, aby obrysować obszar. W prawym górnym rogu możesz włączyć zdjęcia satelitarne.</p>
+        <h3>Pomiar Działki</h3>
+        <p>Klikaj bezpośrednio na mapie, aby stawiać punkty graniczne. Po dodaniu minimum 3 punktów program automatycznie zamknie wielokąt i obliczy pole powierzchni.</p>
         <div id="area-result">Powierzchnia: -</div>
+        <button class="btn-reset" onclick="resetMap()">Wyczyść punkty</button>
     </div>
 
     <div id="map"></div>
 
-    <!-- Biblioteki JavaScript (Wszystkie 3 wymagane, we właściwej kolejności) -->
-    <script src="https://cloudflare.com"></script>
+    <!-- Załadowanie wyłącznie podstawy Leaflet oraz kalkulatora powierzchni Turf -->
     <script src="https://cloudflare.com"></script>
     <script src="https://cloudflare.com"></script>
 
     <script>
-        // Warstwy mapy
         var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19, attribution: '© OpenStreetMap'
         });
@@ -53,7 +52,6 @@
             maxZoom: 19, attribution: 'Tiles © Esri'
         });
 
-        // Inicjalizacja mapy
         var map = L.map('map', {
             center: [52.0689, 19.4797],
             zoom: 6,
@@ -66,33 +64,62 @@
         };
         L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
 
-        var drawnItems = new L.FeatureGroup();
-        map.addLayer(drawnItems);
+        // Tablice i zmienne pomocnicze na punkty, linie i obszar działki
+        var clickedPoints = [];
+        var visualMarkers = [];
+        var activePolygon = null;
 
-        var drawControl = new L.Control.Draw({
-            edit: { featureGroup: drawnItems },
-            draw: {
-                polygon: { allowIntersection: false, shapeOptions: { color: '#ff3333', weight: 3, fillOpacity: 0.2 } },
-                rectangle: { shapeOptions: { color: '#ff3333', weight: 3, fillOpacity: 0.2 } },
-                polyline: false, circle: false, marker: false, circlemarker: false
+        // Obsługa kliknięcia bezpośrednio na mapie
+        map.on('click', function (e) {
+            var lat = e.latlng.lat;
+            var lng = e.latlng.lng;
+
+            // Zapisujemy współrzędne punktu
+            clickedPoints.push([lat, lng]);
+
+            // Dodajemy mały znacznik punktu na mapie
+            var marker = L.circleMarker([lat, lng], { radius: 5, color: '#007bff', fillColor: '#007bff', fillOpacity: 1 }).addTo(map);
+            visualMarkers.push(marker);
+
+            // Jeśli mamy więcej niż 2 punkty, zaczynamy rysować obszar i liczyć metry
+            if (clickedPoints.length >= 3) {
+                if (activePolygon) {
+                    map.removeLayer(activePolygon);
+                }
+
+                // Tworzymy wielokąt z zaznaczonych punktów
+                activePolygon = L.polygon(clickedPoints, { color: '#ff3333', weight: 3, fillOpacity: 0.3 }).addTo(map);
+
+                // Konwersja do GeoJSON i wyliczenie powierzchni za pomocą Turf.js
+                var geojson = activePolygon.toGeoJSON();
+                var areaSquareMeters = turf.area(geojson);
+
+                var resultText = "";
+                if (areaSquareMeters >= 10000) {
+                    resultText = (areaSquareMeters / 10000).toFixed(2) + " ha";
+                } else {
+                    resultText = areaSquareMeters.toFixed(2) + " m²";
+                }
+                document.getElementById('area-result').innerHTML = "Powierzchnia: " + resultText;
             }
         });
-        map.addControl(drawControl);
 
-        // Obliczanie powierzchni
-        map.on(L.Draw.Event.CREATED, function (e) {
-            var layer = e.layer;
-            drawnItems.clearLayers();
-            drawnItems.addLayer(layer);
-
-            var geojson = layer.toGeoJSON();
-            var areaSquareMeters = turf.area(geojson);
-            
-            var resultText = areaSquareMeters >= 10000 ? (areaSquareMeters / 10000).toFixed(2) + " ha" : areaSquareMeters.toFixed(2) + " m²";
-            document.getElementById('area-result').innerHTML = "Powierzchnia: " + resultText;
-        });
+        // Funkcja resetująca zaznaczenie
+        function resetMap() {
+            clickedPoints = [];
+            if (activePolygon) {
+                map.removeLayer(activePolygon);
+                activePolygon = null;
+            }
+            visualMarkers.forEach(function(m) {
+                map.removeLayer(m);
+            });
+            visualMarkers = [];
+            document.getElementById('area-result').innerHTML = "Powierzchnia: -";
+        }
     </script>
 </body>
 </html>
+
 
 
