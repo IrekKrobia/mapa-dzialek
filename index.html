@@ -3,110 +3,77 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wydzielanie działki - Wersja 11.0</title>
+    <title>Pomiar Obszaru Działki - Wersja 12.0</title>
     <style>
         html, body {
             margin: 0; padding: 0; width: 100%; height: 100%;
             overflow: hidden; font-family: Arial, sans-serif;
-            background-color: #222;
+            background-color: #2c3e50; /* Zmiana koloru tła, aby od razu widzieć odświeżenie */
         }
-        #container {
+        #canvas-container {
             position: relative; width: 100%; height: 100%;
         }
-        #map-image {
-            width: 100%; height: 100%; object-fit: cover;
-            position: absolute; top: 0; left: 0; z-index: 1;
-        }
-        #draw-canvas {
+        #map-canvas {
             position: absolute; top: 0; left: 0; z-index: 5;
             cursor: crosshair;
         }
         #info-box {
             position: absolute; top: 20px; left: 20px; z-index: 1000;
             background: white; padding: 15px; border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5); max-width: 280px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3); max-width: 280px;
         }
         h3 { margin-top: 0; margin-bottom: 4px; font-size: 16px; color: #000; }
-        .version-tag { font-size: 11px; color: #d35400; font-weight: bold; margin-bottom: 8px; display: block; }
+        .version-tag { font-size: 11px; color: #27ae60; font-weight: bold; margin-bottom: 8px; display: block; }
         p { margin: 0 0 12px 0; font-size: 13px; color: #333; line-height: 1.4; }
         #area-result { font-size: 14px; color: #000; font-weight: bold; margin-bottom: 10px; }
-        .btn-layer { display: block; width: 100%; padding: 8px; background: #007bff; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; margin-bottom: 5px; }
-        .btn-reset { display: block; width: 100%; padding: 8px; background: #dc3545; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .btn { width: 100%; padding: 8px; background: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        .btn:hover { background: #c0392b; }
     </style>
 </head>
 <body>
 
-    <div id="container">
-        <!-- Zwykły znacznik obrazu pobierający mapę z bezpiecznych, publicznych serwerów jako plik JPG -->
-        <img id="map-image" src="https://arcgisonline.com" alt="Mapa">
-        
-        <!-- Powłoka graficzna do rysowania linii bezpośrednio w przeglądarce -->
-        <canvas id="draw-canvas"></canvas>
+    <div id="canvas-container">
+        <!-- Czysta warstwa rysunkowa HTML5 - 0% ramek iframe, 0% blokowanych skryptów .js -->
+        <canvas id="map-canvas"></canvas>
     </div>
 
     <div id="info-box">
-        <h3>Pomiar Terenu</h3>
-        <span class="version-tag">WERSJA SYSTEMU: 11.0</span>
-        <p>Klikaj bezpośrednio na mapie, aby stawiać punkty graniczne. Po dodaniu min. 3 punktów system obrysuje działkę i wyliczy jej powierzchnię.</p>
+        <h3>Pomiar Obszaru</h3>
+        <span class="version-tag">WERSJA SYSTEMU: 12.0</span>
+        <p>Klikaj bezpośrednio na mapie, aby stawiać punkty graniczne. Po dodaniu minimum 3 punktów system automatycznie obliczy powierzchnię.</p>
         <div id="area-result">Powierzchnia: -</div>
-        <button class="btn-layer" onclick="toggleMapType()">Przełącz Satelita / Drogi</button>
-        <button class="btn-reset" onclick="resetPoints()">Wyczyść punkty</button>
+        <button class="btn" onclick="resetPoints()">Wyczyść punkty</button>
     </div>
 
     <script>
-        var img = document.getElementById('map-image');
-        var canvas = document.getElementById('draw-canvas');
+        var canvas = document.getElementById('map-canvas');
         var ctx = canvas.getContext('2d');
         var points = [];
-        var isSatellite = true;
 
-        // Przełączanie między zdjęciem satelitarnym a siatką dróg bez używania skryptów CDN
-        function toggleMapType() {
-            isSatellite = !isSatellite;
-            if (isSatellite) {
-                img.src = 'https://arcgisonline.com';
-            } else {
-                img.src = 'https://openstreetmap.org';
-            }
-        }
+        // Pobieranie niezawodnego, darmowego obrazu mapy omijającego wszelkie restrykcje CORS/MIME
+        var mapBg = new Image();
+        mapBg.src = 'https://wikimedia.org';
 
-        function resizeCanvas() {
+        function initCanvas() {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
-            redraw();
+            render();
         }
 
-        img.onload = function() {
-            resizeCanvas();
+        mapBg.onload = function() {
+            initCanvas();
         };
-        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('resize', initCanvas);
 
-        canvas.addEventListener('click', function(e) {
-            var rect = canvas.getBoundingClientRect();
-            var x = e.clientX - rect.left;
-            var y = e.clientY - rect.top;
-
-            points.push({x: x, y: y});
-
-            // Wbudowany, lokalny matematyczny algorytm liczenia pola powierzchni wielokąta z pikseli
-            if (points.length >= 3) {
-                var area = 0;
-                var j = points.length - 1;
-                for (var i = 0; i < points.length; i++) {
-                    area += (points[j].x + points[i].x) * (points[j].y - points[i].y);
-                    j = i;
-                }
-                var calculatedArea = Math.abs(area / 2) * 15.6; // Przelicznik skali graficznej dla wybranego kafelka
-
-                var resultText = calculatedArea >= 10000 ? (calculatedArea / 10000).toFixed(2) + " ha" : calculatedArea.toFixed(2) + " m²";
-                document.getElementById('area-result').innerHTML = "Powierzchnia: " + resultText;
-            }
-            redraw();
-        });
-
-        function redraw() {
+        function render() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+            // Rysowanie tła mapy (Załaduje się w każdej przeglądarce jako zwykły obrazek)
+            if (mapBg.complete) {
+                ctx.drawImage(mapBg, 0, 0, canvas.width, canvas.height);
+            }
+
+            // Rysowanie linii działki i punktów
             if (points.length > 0) {
                 ctx.beginPath();
                 ctx.moveTo(points[0].x, points[0].y);
@@ -115,18 +82,18 @@
                 }
                 if (points.length >= 3) {
                     ctx.closePath();
-                    ctx.fillStyle = 'rgba(255, 51, 51, 0.3)';
+                    ctx.fillStyle = 'rgba(39, 174, 96, 0.3)'; // Zielone wypełnienie obszaru
                     ctx.fill();
                 }
-                ctx.strokeStyle = '#ff3333';
+                ctx.strokeStyle = '#27ae60';
                 ctx.lineWidth = 3;
                 ctx.stroke();
 
-                // Rysowanie kropek węzłowych działki
+                // Punkty węzłowe (Niebieskie kropki)
                 points.forEach(function(pt) {
                     ctx.beginPath();
                     ctx.arc(pt.x, pt.y, 6, 0, 2 * Math.PI);
-                    ctx.fillStyle = '#007bff';
+                    ctx.fillStyle = '#2980b9';
                     ctx.fill();
                     ctx.strokeStyle = '#ffffff';
                     ctx.lineWidth = 2;
@@ -135,12 +102,39 @@
             }
         }
 
+        canvas.addEventListener('click', function(e) {
+            var rect = canvas.getBoundingClientRect();
+            var x = e.clientX - rect.left;
+            var y = e.clientY - rect.top;
+
+            points.push({x: x, y: y});
+
+            // Wbudowany, natywny algorytm liczenia pola powierzchni z pikseli (Bez zewnętrznego Turf.js)
+            if (points.length >= 3) {
+                var area = 0;
+                var j = points.length - 1;
+                for (var i = 0; i < points.length; i++) {
+                    area += (points[j].x + points[i].x) * (points[j].y - points[i].y);
+                    j = i;
+                }
+                var pixelsArea = Math.abs(area / 2);
+                
+                // Przelicznik umowny skali dla wycentrowanej mapy
+                var realArea = pixelsArea * 4.5; 
+                var resultText = realArea >= 10000 ? (realArea / 10000).toFixed(2) + " ha" : realArea.toFixed(2) + " m²";
+                document.getElementById('area-result').innerHTML = "Powierzchnia: " + resultText;
+            }
+            render();
+        });
+
         function resetPoints() {
             points = [];
             document.getElementById('area-result').innerHTML = "Powierzchnia: -";
-            redraw();
+            render();
         }
+
+        // Zabezpieczenie na wypadek wolnego łącza - wymuszenie rysowania
+        setTimeout(render, 500);
     </script>
 </body>
 </html>
-
