@@ -3,9 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wydzielanie działki - OpenStreetMap</title>
+    <title>Wydzielanie działki - Wersja 5.0</title>
     
-    <!-- Tylko jedna, podstawowa i stabilna biblioteka stylów -->
+    <!-- Sprawdzone i stabilne style CDN z cdnjs -->
     <link rel="stylesheet" href="https://cloudflare.com" />
     
     <style>
@@ -22,7 +22,8 @@
             background: white; padding: 15px; border-radius: 8px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.2); max-width: 280px;
         }
-        h3 { margin-top: 0; margin-bottom: 8px; font-size: 16px; }
+        h3 { margin-top: 0; margin-bottom: 4px; font-size: 16px; }
+        .version-tag { font-size: 11px; color: #888; font-weight: bold; margin-bottom: 8px; display: block; }
         p { margin: 0 0 10px 0; font-size: 13px; color: #555; }
         #area-result { font-size: 14px; color: #000; font-weight: bold; }
         .btn-reset { display: block; margin-top: 10px; padding: 5px 10px; background: #ff3333; color: white; border: none; border-radius: 4px; cursor: pointer; }
@@ -32,6 +33,7 @@
 
     <div id="info-box">
         <h3>Pomiar Działki</h3>
+        <span class="version-tag">WERSJA SYSTEMU: 5.0</span>
         <p>Klikaj bezpośrednio na mapie, aby stawiać punkty graniczne. Po dodaniu minimum 3 punktów program automatycznie zamknie wielokąt i obliczy pole powierzchni.</p>
         <div id="area-result">Powierzchnia: -</div>
         <button class="btn-reset" onclick="resetMap()">Wyczyść punkty</button>
@@ -44,23 +46,25 @@
     <script src="https://cloudflare.com"></script>
 
     <script>
-        var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        // Definiowanie warstw podkładowych
+        var osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19, attribution: '© OpenStreetMap'
         });
 
-        var satelliteLayer = L.tileLayer('https://arcgisonline.com{z}/{y}/{x}', {
+        var satellite = L.tileLayer('https://arcgisonline.com{z}/{y}/{x}', {
             maxZoom: 19, attribution: 'Tiles © Esri'
         });
 
+        // Inicjalizacja mapy z poprawną nazwą domyślnej warstwy [osm]
         var map = L.map('map', {
             center: [52.0689, 19.4797],
             zoom: 6,
-            layers: [osmLayer]
+            layers: [osm]
         });
 
         var baseMaps = {
-            "Zwykła mapa (ulice)": osmLayer,
-            "Zdjęcia satelitarne": satelliteLayer
+            "Zwykła mapa (ulice)": osm,
+            "Zdjęcia satelitarne": satellite
         };
         L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
 
@@ -74,23 +78,18 @@
             var lat = e.latlng.lat;
             var lng = e.latlng.lng;
 
-            // Zapisujemy współrzędne punktu
             clickedPoints.push([lat, lng]);
 
-            // Dodajemy mały znacznik punktu na mapie
             var marker = L.circleMarker([lat, lng], { radius: 5, color: '#007bff', fillColor: '#007bff', fillOpacity: 1 }).addTo(map);
             visualMarkers.push(marker);
 
-            // Jeśli mamy więcej niż 2 punkty, zaczynamy rysować obszar i liczyć metry
             if (clickedPoints.length >= 3) {
                 if (activePolygon) {
                     map.removeLayer(activePolygon);
                 }
 
-                // Tworzymy wielokąt z zaznaczonych punktów
                 activePolygon = L.polygon(clickedPoints, { color: '#ff3333', weight: 3, fillOpacity: 0.3 }).addTo(map);
 
-                // Konwersja do GeoJSON i wyliczenie powierzchni za pomocą Turf.js
                 var geojson = activePolygon.toGeoJSON();
                 var areaSquareMeters = turf.area(geojson);
 
@@ -104,7 +103,6 @@
             }
         });
 
-        // Funkcja resetująca zaznaczenie
         function resetMap() {
             clickedPoints = [];
             if (activePolygon) {
@@ -120,6 +118,7 @@
     </script>
 </body>
 </html>
+
 
 
 
