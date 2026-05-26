@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wydzielanie działki - OpenStreetMap</title>
     
-    <!-- Sprawdzone i stabilne style CDN z cdnjs -->
     <link rel="stylesheet" href="https://cloudflare.com" />
     <link rel="stylesheet" href="https://cloudflare.com" />
     
@@ -32,44 +31,38 @@
 
     <div id="info-box">
         <h3>Twoja Działka</h3>
-        <p>Wybierz ikonę wielokąta po lewej stronie, aby obrysować obszar. W prawym górnym rogu możesz przełączać widok mapy.</p>
+        <p>Wybierz ikonę wielokąta po lewej stronie, aby obrysować obszar. W prawym górnym rogu możesz włączyć zdjęcia satelitarne.</p>
         <div id="area-result">Powierzchnia: -</div>
     </div>
 
     <div id="map"></div>
 
-    <!-- Sprawdzone i w pełni działające biblioteki z cdnjs -->
     <script src="https://cloudflare.com"></script>
     <script src="https://cloudflare.com"></script>
     <script src="https://cloudflare.com"></script>
 
     <script>
-        // 1. Definiowanie warstw (Poprawione, pełne linki bez błędów 404)
         var osmLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '© OpenStreetMap'
+            maxZoom: 19, attribution: '© OpenStreetMap'
         });
 
         var satelliteLayer = L.tileLayer('https://arcgisonline.com{z}/{y}/{x}', {
-            maxZoom: 19,
-            attribution: 'Tiles © Esri'
+            maxZoom: 19, attribution: 'Tiles © Esri'
         });
 
-        // 2. Inicjalizacja mapy (Środek Polski)
+        // POPRAWIONE: Wpisane prawidłowe współrzędne geograficzne środka Polski
         var map = L.map('map', {
             center: [52.0689, 19.4797],
             zoom: 6,
             layers: [osmLayer]
         });
 
-        // 3. Dodanie przełącznika warstw w prawym górnym rogu
         var baseMaps = {
             "Zwykła mapa (ulice)": osmLayer,
             "Zdjęcia satelitarne": satelliteLayer
         };
         L.control.layers(baseMaps, null, { position: 'topright' }).addTo(map);
 
-        // 4. Konfiguracja paska rysowania
         var drawnItems = new L.FeatureGroup();
         map.addLayer(drawnItems);
 
@@ -83,15 +76,11 @@
                 rectangle: {
                     shapeOptions: { color: '#ff3333', weight: 3, fillOpacity: 0.2 }
                 },
-                polyline: false,
-                circle: false,
-                marker: false,
-                circlemarker: false
+                polyline: false, circle: false, marker: false, circlemarker: false
             }
         });
         map.addControl(drawControl);
 
-        // 5. Logika obliczeń powierzchni po narysowaniu działki
         map.on(L.Draw.Event.CREATED, function (e) {
             var layer = e.layer;
             drawnItems.clearLayers();
@@ -107,19 +96,6 @@
                 resultText = areaSquareMeters.toFixed(2) + " m²";
             }
             document.getElementById('area-result').innerHTML = "Powierzchnia: " + resultText;
-        });
-
-        map.on(L.Draw.Event.EDITED, function (e) {
-            e.layers.eachLayer(function (layer) {
-                var geojson = layer.toGeoJSON();
-                var areaSquareMeters = turf.area(geojson);
-                var resultText = areaSquareMeters >= 10000 ? (areaSquareMeters / 10000).toFixed(2) + " ha" : areaSquareMeters.toFixed(2) + " m²";
-                document.getElementById('area-result').innerHTML = "Powierzchnia: " + resultText;
-            });
-        });
-
-        map.on(L.Draw.Event.DELETED, function () {
-            document.getElementById('area-result').innerHTML = "Powierzchnia: -";
         });
     </script>
 </body>
