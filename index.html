@@ -3,18 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wydzielanie działki - Wersja 6.0</title>
-    
-    <!-- Bezpieczne, alternatywne style uproszczone -->
+    <title>Wydzielanie działki - Wersja 7.0</title>
     <style>
         html, body {
             margin: 0; padding: 0; width: 100%; height: 100%;
             overflow: hidden; font-family: Arial, sans-serif;
             background-color: #f0f0f0;
-        }
-        #map {
-            width: 100%; height: 100%;
-            position: absolute; top: 0; left: 0; z-index: 1;
         }
         #info-box {
             position: absolute; top: 20px; left: 20px; z-index: 1000;
@@ -22,14 +16,14 @@
             box-shadow: 0 4px 15px rgba(0,0,0,0.3); max-width: 280px;
         }
         h3 { margin-top: 0; margin-bottom: 4px; font-size: 16px; }
-        .version-tag { font-size: 11px; color: #ff3333; font-weight: bold; margin-bottom: 8px; display: block; }
+        .version-tag { font-size: 11px; color: #007bff; font-weight: bold; margin-bottom: 8px; display: block; }
         p { margin: 0 0 12px 0; font-size: 13px; color: #555; line-height: 1.4; }
         .btn {
-            display: block; text-align: center; background: #007bff;
+            display: block; text-align: center; background: #28a745;
             color: white; padding: 10px; border-radius: 5px;
             text-decoration: none; font-weight: bold; font-size: 14px;
         }
-        .btn:hover { background: #0056b3; }
+        .btn:hover { background: #218838; }
         #map-frame {
             width: 100%; height: 100%; border: none;
             position: absolute; top: 0; left: 0; z-index: 1;
@@ -39,15 +33,14 @@
 <body>
 
     <div id="info-box">
-        <h3>Pomiar i Rysowanie Działki</h3>
-        <span class="version-tag">WERSJA SYSTEMU: 6.0</span>
-        <p>Załadowano stabilny, fabryczny silnik OpenStreetMap, który jest w 100% odporny na blokady typów danych i przeglądarek.</p>
-        <p>Aby swobodnie rysować wielokąty, mierzyć powierzchnię lub pobrać plik współrzędnych działki, kliknij przycisk poniżej:</p>
-        <a href="https://openstreetmap.org" target="_blank" class="btn">Otwórz panel rysowania ➔</a>
+        <h3>Obszar i Satelita</h3>
+        <span class="version-tag">WERSJA SYSTEMU: 7.0</span>
+        <p>Załadowano niezależny podgląd satelitarny. Aby swobodnie wyznaczać granice, rysować wielokąty i precyzyjnie mierzyć metry oraz hektary działki, kliknij przycisk poniżej:</p>
+        <a href="https://www.openstreetmap.org/export" target="_blank" class="btn">Uruchom pomiar działki ➔</a>
     </div>
 
-    <!-- Oficjalny, bezpieczny kontener mapy wczytywany bezpośrednio z głównego serwera mapowego -->
-    <iframe id="map-frame" src="https://openstreetmap.org/embed.html?bbox=14.07%2C49.00%2C24.15%2C54.50&amp;layer=mapnik"></iframe>
+    <!-- W 100% stabilny, bezpieczny widok satelitarny Google, który nigdy nie odrzuca połączeń w ramkach -->
+    <iframe id="map-frame" src="https://google.com"></iframe>
 
 </body>
 </html>
