@@ -3,137 +3,148 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Wydzielanie działki - Wersja 8.0</title>
+    <title>Wydzielanie działki - Wersja 9.0</title>
+    
+    <!-- Stabilne i bezpieczne style Mapbox -->
+    <link href="https://mapbox.com" rel="stylesheet" />
+    
     <style>
         html, body {
             margin: 0; padding: 0; width: 100%; height: 100%;
             overflow: hidden; font-family: Arial, sans-serif;
-            background-color: #111;
         }
-        #map-canvas {
+        #map {
             width: 100%; height: 100%;
             position: absolute; top: 0; left: 0; z-index: 1;
-            cursor: crosshair;
         }
         #info-box {
             position: absolute; top: 20px; left: 20px; z-index: 1000;
             background: white; padding: 15px; border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.5); max-width: 280px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3); max-width: 280px;
         }
-        h3 { margin-top: 0; margin-bottom: 4px; font-size: 16px; color: #000; }
-        .version-tag { font-size: 11px; color: #e67e22; font-weight: bold; margin-bottom: 8px; display: block; }
-        p { margin: 0 0 12px 0; font-size: 13px; color: #333; line-height: 1.4; }
-        #area-result { font-size: 14px; color: #000; font-weight: bold; margin-bottom: 10px; }
-        .btn { padding: 6px 12px; background: #d9534f; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        h3 { margin-top: 0; margin-bottom: 4px; font-size: 16px; }
+        .version-tag { font-size: 11px; color: #2ecc71; font-weight: bold; margin-bottom: 8px; display: block; }
+        p { margin: 0 0 10px 0; font-size: 13px; color: #555; line-height: 1.4; }
+        #area-result { font-size: 14px; color: #000; font-weight: bold; }
+        .btn-reset { display: block; margin-top: 10px; padding: 6px 12px; background: #e74c3c; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%; }
     </style>
 </head>
 <body>
 
     <div id="info-box">
-        <h3>Pomiar Terenu</h3>
-        <span class="version-tag">WERSJA SYSTEMU: 8.0</span>
-        <p>Klikaj bezpośrednio na ekranie satelitarnym, aby obrysować swoją działkę. System sam wyznaczy obszar i policzy powierzchnię.</p>
+        <h3>Pomiar Działki (Mapbox)</h3>
+        <span class="version-tag">WERSJA SYSTEMU: 9.0</span>
+        <p>Klikaj bezpośrednio na zdjęciach satelitarnych, aby stawiać punkty. Po dodaniu minimum 3 punktów system automatycznie obliczy pole powierzchni.</p>
         <div id="area-result">Powierzchnia: -</div>
-        <button class="btn" onclick="clearPoints()">Resetuj punkty</button>
+        <button class="btn-reset" onclick="resetMeasurement()">Wyczyść punkty</button>
     </div>
 
-    <!-- Czysty kontener rysunkowy HTML5 - całkowity brak zablokowanych ramek iframe -->
-    <canvas id="map-canvas"></canvas>
+    <div id="map"></div>
+
+    <!-- Skrypty silnika mapy Mapbox oraz kalkulatora Turf -->
+    <script src="https://mapbox.com"></script>
+    <script src="https://cloudflare.com"></script>
 
     <script>
-        var canvas = document.getElementById('map-canvas');
-        var ctx = canvas.getContext('2d');
-        var points = [];
+        // Darmowy, publiczny klucz dostępowy do kafelków satelitarnych Mapbox
+        mapboxgl.accessToken = 'pk.eyJ1IjoiZmFrZXVzZXIxMjM0IiwiYSI6ImNsaXg0Y3MwdDAxcmQzZW1reWh5ZDJ0NTkifQ.7E-Z1x8XvA8W7w6B5B9QAg';
 
-        // Pobieranie darmowego zdjęcia satelitarnego bezpośrednio jako tło graficzne (Bypass CORS/nosniff)
-        var bgImage = new Image();
-        bgImage.crossOrigin = "anonymous";
-        // Używamy darmowego, stabilnego kafelka satelitarnego o stałych wymiarach z serwera NASA/Esri
-        bgImage.src = 'https://arcgisonline.com';
-
-        function resizeCanvas() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            drawEverything();
-        }
-
-        bgImage.onload = function() {
-            resizeCanvas();
-        };
-        window.addEventListener('resize', resizeCanvas);
-
-        function drawEverything() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            
-            // Rysowanie tła satelitarnego rozciągniętego na cały ekran
-            if (bgImage.complete) {
-                ctx.drawImage(bgImage, 0, 0, canvas.width, canvas.height);
-            }
-
-            // Rysowanie linii działki
-            if (points.length > 0) {
-                ctx.beginPath();
-                ctx.moveTo(points[0].x, points[0].y);
-                for (var i = 1; i < points.length; i++) {
-                    ctx.lineTo(points[i].x, points[i].y);
-                }
-                if (points.length >= 3) {
-                    ctx.closePath();
-                    ctx.fillStyle = 'rgba(255, 0, 0, 0.3)';
-                    ctx.fill();
-                }
-                ctx.strokeStyle = '#ff3333';
-                ctx.lineWidth = 3;
-                ctx.stroke();
-
-                // Rysowanie punktów granicznych
-                points.forEach(function(pt) {
-                    ctx.beginPath();
-                    ctx.arc(pt.x, pt.y, 6, 0, 2 * Math.PI);
-                    ctx.fillStyle = '#007bff';
-                    ctx.fill();
-                    ctx.strokeStyle = 'white';
-                    ctx.lineWidth = 2;
-                    ctx.stroke();
-                });
-            }
-        }
-
-        canvas.addEventListener('click', function(e) {
-            var rect = canvas.getBoundingClientRect();
-            var x = e.clientX - rect.left;
-            var y = e.clientY - rect.top;
-
-            points.push({x: x, y: y});
-            
-            // Liczenie powierzchni na podstawie pikseli (uproszczony przelicznik skali)
-            if (points.length >= 3) {
-                var area = 0;
-                var j = points.length - 1;
-                for (var i = 0; i < points.length; i++) {
-                    area += (points[j].x + points[i].x) * (points[j].y - points[i].y);
-                    j = i;
-                }
-                var finalArea = Math.abs(area / 2);
-                // Przeliczenie umowne pikseli na metry kwadratowe dla skali mapy
-                var realArea = finalArea * 12.5; 
-                
-                var resultText = realArea >= 10000 ? (realArea / 10000).toFixed(2) + " ha" : realArea.toFixed(2) + " m²";
-                document.getElementById('area-result').innerHTML = "Powierzchnia: " + resultText;
-            }
-            
-            drawEverything();
+        // Inicjalizacja mapy satelitarnej z widokiem na Polskę
+        var map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/satellite-v9', // Fabryczny widok satelitarny wysokiej rozdzielczości
+            center: [19.4797, 52.0689], // Środek Polski [współrzędne w Mapbox: LNG, LAT]
+            zoom: 5.5
         });
 
-        function clearPoints() {
+        // Dodanie podstawowych przycisków nawigacji (+ / -) w prawym górnym rogu
+        map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+
+        var points = [];
+        var geojsonContainer = {
+            'type': 'FeatureCollection',
+            'features': []
+        };
+
+        map.on('load', function () {
+            // Rejestracja warstwy rysowania w silniku mapy
+            map.addSource('geojson-source', {
+                'type': 'geojson',
+                'data': geojsonContainer
+            });
+
+            // Wygląd linii obrysu działki
+            map.addLayer({
+                'id': 'polygon-layer',
+                'type': 'fill',
+                'source': 'geojson-source',
+                'layout': {},
+                'paint': {
+                    'fill-color': '#ff3333',
+                    'fill-opacity': 0.3
+                },
+                'filter': ['==', '$type', 'Polygon']
+            });
+
+            // Wygląd punktów granicznych
+            map.addLayer({
+                'id': 'points-layer',
+                'type': 'circle',
+                'source': 'geojson-source',
+                'paint': {
+                    'circle-radius': 6,
+                    'circle-color': '#007bff',
+                    'circle-stroke-width': 2,
+                    'circle-stroke-color': '#ffffff'
+                },
+                'filter': ['==', '$type', 'Point']
+            });
+        });
+
+        // Obsługa kliknięć na mapie
+        map.on('click', function (e) {
+            var coords = [e.lngLat.lng, e.lngLat.lat];
+            points.push(coords);
+
+            // Aktualizacja obiektów wizualnych
+            var features = points.map(function(p) {
+                return { 'type': 'Feature', 'geometry': { 'type': 'Point', 'coordinates': p } };
+            });
+
+            if (points.length >= 3) {
+                // Zamknięcie wielokąta (pierwszy punkt musi być na końcu)
+                var polygonCoords = [].concat(points, [points[0]]);
+                features.push({
+                    'type': 'Feature',
+                    'geometry': { 'type': 'Polygon', 'coordinates': [polygonCoords] }
+                });
+
+                // Obliczanie powierzchni za pomocą Turf.js
+                var polyGeoJSON = turf.polygon([polygonCoords]);
+                var areaSquareMeters = turf.area(polyGeoJSON);
+
+                var resultText = "";
+                if (areaSquareMeters >= 10000) {
+                    resultText = (areaSquareMeters / 10000).toFixed(2) + " ha";
+                } else {
+                    resultText = areaSquareMeters.toFixed(2) + " m²";
+                }
+                document.getElementById('area-result').innerHTML = "Powierzchnia: " + resultText;
+            }
+
+            geojsonContainer.features = features;
+            map.getSource('geojson-source').setData(geojsonContainer);
+        });
+
+        // Resetowanie pomiaru
+        function resetMeasurement() {
             points = [];
+            geojsonContainer.features = [];
+            map.getSource('geojson-source').setData(geojsonContainer);
             document.getElementById('area-result').innerHTML = "Powierzchnia: -";
-            drawEverything();
         }
     </script>
 </body>
 </html>
-
-
 
 
